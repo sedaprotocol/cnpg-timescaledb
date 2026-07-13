@@ -1,0 +1,43 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":dependencyDashboard"
+  ],
+  "timezone": "UTC",
+  "schedule": ["* 5-7 1,15 * *"],
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "description": "TimescaleDB is pinned to 2.26.x. Auto-PR point releases (2.26.4 -> 2.26.5) but block 2.27+ so retention/CAGG behaviour stays validated. The CNPG base image is not pinned in the Dockerfile: the build always pulls the rolling 18-standard-trixie tag, so Postgres minor/CVE patches flow in automatically on each bi-weekly build.",
+      "matchManagers": ["custom.regex"],
+      "matchDepNames": ["timescale/timescaledb"],
+      "allowedVersions": "/^2\\.26\\./"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track the pinned TimescaleDB version ARG in the Dockerfile.",
+      "managerFilePatterns": ["/^Dockerfile$/"],
+      "matchStrings": [
+        "ARG TIMESCALE_VERSION=(?<currentValue>[0-9.]+)"
+      ],
+      "depNameTemplate": "timescale/timescaledb",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^(?<version>\\d+\\.\\d+\\.\\d+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the TimescaleDB version override default in the build workflow.",
+      "managerFilePatterns": ["/^\\.github/workflows/build\\.yml$/"],
+      "matchStrings": [
+        "TIMESCALE_VERSION: \\$\\{\\{ github\\.event\\.inputs\\.timescale_version \\|\\| '(?<currentValue>[0-9.]+)' \\}\\}"
+      ],
+      "depNameTemplate": "timescale/timescaledb",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^(?<version>\\d+\\.\\d+\\.\\d+)$"
+    }
+  ]
+}

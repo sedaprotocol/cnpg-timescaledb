@@ -1,9 +1,7 @@
 # syntax=docker/dockerfile:1
 
-# CNPG-compatible PostgreSQL operand image with the TimescaleDB extension.
-#
-# Built on the CloudNativePG official Postgres base so it drops directly into a
-# CNPG `Cluster` (instance-manager entrypoint, UID 26, no competing supervisor).
+# CNPG operand image: official CloudNativePG Postgres base + TimescaleDB.
+# Keeps the CNPG entrypoint and UID 26 so it drops into a Cluster unchanged.
 
 ARG PG_MAJOR=18
 ARG DEBIAN_RELEASE=trixie
@@ -11,16 +9,15 @@ ARG BASE_TAG=${PG_MAJOR}-standard-${DEBIAN_RELEASE}
 
 FROM ghcr.io/cloudnative-pg/postgresql:${BASE_TAG}
 
-# Re-declare after FROM so they are visible in the build stage.
+# Re-declare after FROM to make them visible in this stage.
 ARG PG_MAJOR=18
 ARG DEBIAN_RELEASE=trixie
 ARG TIMESCALE_VERSION=2.26.4
 
 USER root
 
-# Install the extension and its loader (the loader ships timescaledb.so, which
-# is what shared_preload_libraries=timescaledb resolves against). Both packages
-# are pinned to the same TimescaleDB version.
+# Install the extension and its loader, both pinned to the same version. The
+# loader ships timescaledb.so, which shared_preload_libraries resolves against.
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \

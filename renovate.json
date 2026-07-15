@@ -10,7 +10,7 @@
   "labels": ["dependencies"],
   "packageRules": [
     {
-      "description": "TimescaleDB is pinned to 2.26.x. Auto-PR point releases (2.26.4 -> 2.26.5) but block 2.27+ so retention/CAGG behaviour stays validated. The CNPG base image is not pinned in the Dockerfile: the build always pulls the rolling 18-standard-trixie tag, so Postgres minor/CVE patches flow in automatically on each bi-weekly build.",
+      "description": "Pin TimescaleDB to 2.26.x: PR point releases, block 2.27+.",
       "matchManagers": ["custom.regex"],
       "matchDepNames": ["timescale/timescaledb"],
       "allowedVersions": "/^2\\.26\\./"
@@ -19,7 +19,7 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Track the pinned TimescaleDB version ARG in the Dockerfile.",
+      "description": "Track TIMESCALE_VERSION in the Dockerfile.",
       "managerFilePatterns": ["/^Dockerfile$/"],
       "matchStrings": [
         "ARG TIMESCALE_VERSION=(?<currentValue>[0-9.]+)"
@@ -30,7 +30,7 @@
     },
     {
       "customType": "regex",
-      "description": "Track the TimescaleDB version override default in the build workflow.",
+      "description": "Track the TimescaleDB default in the build workflow.",
       "managerFilePatterns": ["/^\\.github/workflows/build\\.yml$/"],
       "matchStrings": [
         "TIMESCALE_VERSION: \\$\\{\\{ github\\.event\\.inputs\\.timescale_version \\|\\| '(?<currentValue>[0-9.]+)' \\}\\}"

@@ -1,9 +1,7 @@
 name: build
 
-# Rebuilds the CNPG + TimescaleDB operand image on top of the upstream CNPG
-# base to pick up Postgres minor patches and CVE fixes, while keeping PG major
-# and TimescaleDB versions pinned. Runs bi-weekly, on relevant pushes, and on
-# manual dispatch (with version overrides).
+# Rebuilds the operand image to pick up Postgres minor/CVE patches while PG
+# major and TimescaleDB stay pinned. See README "Version policy".
 
 on:
   schedule:
@@ -98,7 +96,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Smoke test (extension loads)
+      - name: Smoke test (extension artifacts present)
         run: |
           set -euo pipefail
           img="${REGISTRY}/${IMAGE_NAME}:${PG_MAJOR}-ts${TIMESCALE_VERSION}"
@@ -108,5 +106,5 @@ jobs:
             --entrypoint /bin/sh "$img" -c '
               set -eux
               test -f "/usr/lib/postgresql/${PG_MAJOR}/lib/timescaledb.so"
-              ls "/usr/share/postgresql/${PG_MAJOR}/extension/timescaledb--${TIMESCALE_VERSION}.sql"
-            ' || (echo "smoke test failed: timescaledb artifacts missing" && exit 1)
+              test -f "/usr/share/postgresql/${PG_MAJOR}/extension/timescaledb--${TIMESCALE_VERSION}.sql"
+            '

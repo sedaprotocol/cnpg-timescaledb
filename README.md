@@ -11,13 +11,12 @@ Pinned to PostgreSQL 18 and TimescaleDB 2.26.4 on Debian trixie.
 
 CNPG's official extension catalog ships pgvector, PostGIS, and pgAudit, but not
 TimescaleDB. Timescale's own `timescaledb-ha` image embeds Patroni, which
-conflicts with the CNPG instance manager. This image is one `apt install` on top
-of the upstream CNPG base, rebuilt every two weeks so Postgres minor and CVE
-patches flow through while the PG major and TimescaleDB version stay pinned.
+conflicts with the CNPG instance manager. This image adds TimescaleDB on top of
+the upstream CNPG base and nothing else.
 
 ## Image
 
-```
+```text
 ghcr.io/sedaprotocol/cnpg-timescaledb:<pg_major>-ts<timescale_version>
 ```
 
@@ -71,24 +70,22 @@ Images are multi-arch (amd64 and arm64) with provenance and SBOM attestations.
 
 Force a build with specific versions:
 
-```
+```bash
 gh workflow run build.yml \
   -f pg_major=18 \
   -f timescale_version=2.26.4 \
   -f debian_release=trixie
 ```
 
-Publishing uses the workflow's `GITHUB_TOKEN`, so no extra registry secret is
-needed. The repository must have package visibility and the Actions
-`packages: write` permission enabled.
+Publishing uses the workflow's `GITHUB_TOKEN` (no extra registry secret needed);
+the workflow requests `packages: write`.
 
 ## Version policy
 
-- PostgreSQL major and Debian release are pinned. The Debian codename of the
-  base image must match the TimescaleDB `~debian<N>` package suffix; the
-  Dockerfile asserts this at build time and fails fast on a mismatch.
-- TimescaleDB is pinned to `2.26.x`. Renovate opens PRs for `2.26` point
-  releases and blocks `2.27+` so retention and continuous-aggregate behaviour
-  stays validated against the application schema.
-- The CNPG base is pulled via the rolling `18-standard-trixie` tag on every
-  build, so Postgres minor and CVE patches are picked up automatically.
+- The CNPG base is pulled via the rolling `18-standard-trixie` tag, so each
+  build picks up Postgres minor and CVE patches. PG major and Debian release
+  stay pinned.
+- TimescaleDB is pinned to `2.26.x`. Renovate PRs point releases and blocks
+  `2.27+` to keep retention and continuous-aggregate behaviour validated.
+- The base image's Debian codename must match the TimescaleDB `~debian<N>`
+  package suffix. The Dockerfile asserts this and fails the build on a mismatch.

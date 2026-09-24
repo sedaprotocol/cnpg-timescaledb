@@ -31,9 +31,14 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: false
 
+permissions: {}
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  # Artifact Registry only accepts runs on main (enforced by the Workload Identity provider); tags there are immutable.
+  GAR_HOST: europe-docker.pkg.dev
+  GAR_IMAGE: europe-docker.pkg.dev/${{ vars.GAR_PROJECT_ID }}/cnpg/cnpg-timescaledb
   PG_MAJOR: ${{ github.event.inputs.pg_major || '18' }}
   TIMESCALE_VERSION: ${{ github.event.inputs.timescale_version || '2.26.4' }}
   DEBIAN_RELEASE: ${{ github.event.inputs.debian_release || 'trixie' }}
@@ -62,6 +67,9 @@ jobs:
             echo "${base}:${ver}"
             echo "${base}:${ver}-${date_stamp}"
             echo "${base}:${ver}-${date_stamp}-${sha_short}"
+            if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+              echo "${GAR_IMAGE}:${ver}-${date_stamp}-${sha_short}"
+            fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
           echo "base_tag=${PG_MAJOR}-standard-${DEBIAN_RELEASE}" >> "$GITHUB_OUTPUT"
@@ -79,7 +87,26 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Authenticate to Google Cloud
+        id: gcp
+        if: github.ref == 'refs/heads/main'
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GAR_WIF_PROVIDER }}
+          service_account: ${{ vars.GAR_PUBLISHER_SA }}
+          token_format: access_token
+          create_credentials_file: false
+
+      - name: Log in to Artifact Registry
+        if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.GAR_HOST }}
+          username: oauth2accesstoken
+          password: ${{ steps.gcp.outputs.access_token }}
+
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -108,3 +135,28 @@ jobs:
               test -f "/usr/lib/postgresql/${PG_MAJOR}/lib/timescaledb.so"
               test -f "/usr/share/postgresql/${PG_MAJOR}/extension/timescaledb--${TIMESCALE_VERSION}.sql"
             '
+
+      # Separate from the login step so the credentials file only exists after the image is built.
+      - name: Authenticate to Google Cloud for signing
+        if: github.ref == 'refs/heads/main'
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GAR_WIF_PROVIDER }}
+          service_account: ${{ vars.GAR_PUBLISHER_SA }}
+
+      - name: Install cosign
+        if: github.ref == 'refs/heads/main'
+        uses: sigstore/cosign-installer@v4.1.2
+
+      # Empty signing config: no transparency log, so verification matches the other internal images.
+      - name: Sign image in Artifact Registry
+        if: github.ref == 'refs/heads/main'
+        env:
+          COSIGN_KEY: ${{ vars.COSIGN_KEY }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          cosign signing-config create --out "$RUNNER_TEMP/signing-config.json"
+          cosign sign --yes \
+            --key "$COSIGN_KEY" \
+            --signing-config "$RUNNER_TEMP/signing-config.json" \
+            "${GAR_IMAGE}@${DIGEST}"
